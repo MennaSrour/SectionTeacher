@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { FileSpreadsheet, Printer } from 'lucide-react'
-import type { Section } from '../types'
+import type { Section, Student } from '../types'
 import { exportSection, sectionReport } from '../services/reports'
 import { number } from './Views'
 
@@ -8,7 +8,7 @@ const decimal = new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 8 })
 const percent = new Intl.NumberFormat('ar-EG', { style: 'percent', maximumFractionDigits: 1 })
 const date = new Intl.DateTimeFormat('ar-EG', { dateStyle: 'long' })
 
-export function Reports({ courseName, section }: { courseName: string; section: Section }) {
+export function Reports({ courseName, section, onProfile }: { courseName: string; section: Section; onProfile: (student: Student) => void }) {
   const report = useMemo(() => sectionReport(section), [section])
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState(false)
@@ -58,7 +58,7 @@ export function Reports({ courseName, section }: { courseName: string; section: 
               .map((name) => <th scope="col" key={name}>{name}</th>)}
           </tr></thead>
           <tbody>{report.rows.map((row) => <tr key={row.student.id}>
-            <td><bdi>{row.student.code}</bdi></td><th scope="row">{row.student.name}</th>
+            <td><bdi>{row.student.code}</bdi></td><th scope="row"><button className="student-name" onClick={() => onProfile(row.student)}>{row.student.name}</button></th>
             <td>{number.format(row.present)}</td><td>{number.format(row.absent)}</td>
             <td>{percent.format(row.absenceRate)}</td><td>{number.format(row.bonus)}</td><td>{decimal.format(row.total)}</td>
           </tr>)}</tbody>

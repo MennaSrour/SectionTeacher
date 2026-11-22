@@ -1,6 +1,6 @@
 import { useId, useState, type FormEvent } from 'react'
 import { ArrowRight, Check, ChevronLeft, ClipboardList, Minus, Pencil, Plus, Star, Trash2 } from 'lucide-react'
-import type { Assessment, AssessmentResult, Bonus, Section } from '../types'
+import type { Assessment, AssessmentResult, Bonus, Section, Student } from '../types'
 import { SubmissionImport } from './SubmissionImport'
 import { Modal } from './Modal'
 import { number } from './Views'
@@ -11,8 +11,9 @@ export type SaveAssessment = (change: (assessment: Assessment) => Assessment) =>
 const initialBonus: Bonus = { points: 0, note: '' }
 const gradeNumber = new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 8 })
 
-export function Assessments({ section, assessmentId, path, save }: {
+export function Assessments({ section, assessmentId, path, save, onProfile }: {
   section: Section
+  onProfile: (student: Student) => void
   assessmentId?: string
   path: string
   save: SaveSection
@@ -87,7 +88,7 @@ export function Assessments({ section, assessmentId, path, save }: {
         {section.students.map((student) => {
           const result = assessment.results[student.id]
           return <li className="grading-row" key={student.id}>
-            <div className="grading-student"><strong>{student.name}</strong><small>الكود · <bdi>{student.code}</bdi></small></div>
+            <div className="grading-student"><button className="student-name" onClick={() => onProfile(student)}>{student.name}</button><small>الكود · <bdi>{student.code || '—'}</bdi></small></div>
             <div className="grading-controls">
               <button className="submission-toggle" aria-label={`تسليم ${student.name}`} aria-pressed={result?.submitted ?? false}
                 onClick={async () => setError(await updateResult(student.id, (item) => ({ ...item, submitted: !item.submitted })))}>
@@ -109,7 +110,7 @@ export function Assessments({ section, assessmentId, path, save }: {
         {section.students.map((student) => {
           const bonus = section.bonuses?.[student.id] ?? initialBonus
           return <li className="grading-row" key={student.id}>
-            <div className="grading-student"><strong>{student.name}</strong><small>الكود · <bdi>{student.code}</bdi></small></div>
+            <div className="grading-student"><button className="student-name" onClick={() => onProfile(student)}>{student.name}</button><small>الكود · <bdi>{student.code || '—'}</bdi></small></div>
             <div className="bonus-controls">
               <button className="button secondary" aria-label={`زيادة البونص لـ ${student.name}`}
                 onClick={() => void updateBonus(student.id, (value) => ({ ...value, points: value.points + 1 }))}><Plus size={17} /> ١</button>

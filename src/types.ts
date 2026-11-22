@@ -50,6 +50,7 @@ export interface Section {
   sessions?: AttendanceSession[]
   assessments?: Assessment[]
   bonuses?: Record<string, Bonus>
+  studentNotes?: Record<string, string>
 }
 
 export interface Course {

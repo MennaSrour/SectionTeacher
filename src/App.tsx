@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { BookOpen, ChevronLeft, ClipboardCheck, FileBarChart2, GraduationCap, HardDrive, LayoutGrid, ListChecks, Users } from 'lucide-react'
+import { BookOpen, ChevronLeft, ClipboardCheck, FileBarChart2, GraduationCap, HardDrive, LayoutGrid, ListChecks, Settings as SettingsIcon, Users } from 'lucide-react'
 import { Assessments } from './components/Assessments'
 import { Attendance } from './components/Attendance'
+import { BulkPaste } from './components/BulkPaste'
 import { Editor, type EditorState } from './components/Editor'
 import { Reports } from './components/Reports'
+import { Settings } from './components/Settings'
+import { StudentProfile } from './components/StudentProfile'
 import { CourseView, Dashboard, number, RosterView } from './components/Views'
 import { courseStore, type CourseStore, type SyncCourseStore } from './services/storage'
 import { mapStudents, readSheet } from './services/spreadsheet'
-import type { AttendanceSession, Course, Section, StudentDetails } from './types'
+import type { AttendanceSession, Course, Section, Student, StudentDetails } from './types'
 
 const saveError = 'تعذّر حفظ التغييرات.'
 const getRoute = () => location.hash.slice(1).split('/')
@@ -20,6 +23,8 @@ export default function App({ store = courseStore, account }: {
   const [courses, setCourses] = useState<Course[] | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [[courseId, sectionId, view, sessionId], setRoute] = useState(getRoute)
+  const [profile, setProfile] = useState<Student | null>(null)
+  const [pasting, setPasting] = useState(false)
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null)
   const [importing, setImporting] = useState(false)
@@ -32,6 +37,7 @@ export default function App({ store = courseStore, account }: {
 
   const sectionPath = `${courseId}/${sectionId}`
   const attendancePath = `${sectionPath}/attendance`
+  const showingSettings = !courseId && sectionId === 'settings'
   const showingAttendance = view === 'attendance'
   const session = section?.sessions?.find((item) => item.id === sessionId)
   const assessmentPath = `${sectionPath}/assessments`
@@ -63,6 +69,8 @@ export default function App({ store = courseStore, account }: {
       navigation.current += 1
       setRoute(getRoute())
       setEditor(null)
+      setProfile(null)
+      setPasting(false)
       setNotice(null)
       window.scrollTo(0, 0)
     }
@@ -70,15 +78,16 @@ export default function App({ store = courseStore, account }: {
     return () => window.removeEventListener('hashchange', update)
   }, [])
 
-  function persist(change: (courses: Course[]) => Course[]) {
+  function persist(change: (courses: Course[]) => Course[], recoverLocal = false) {
     const operation = pending.current.then(async () => {
       try {
-        if (!currentCourses.current) return saveError
-        const next = change(currentCourses.current)
+        if (!currentCourses.current && !recoverLocal) return saveError
+        const next = change(currentCourses.current ?? [])
         await store.save(next)
         if (!sync) {
           currentCourses.current = next
           setCourses(next)
+          setLoadError(false)
         }
       } catch {
         return saveError
@@ -120,7 +129,7 @@ export default function App({ store = courseStore, account }: {
         return updateSections((sections) => sections.filter((item) => item.id !== id))
       case 'student':
         if (!section) return saveError
-        if (section.students.some((student) => student.code === details.code && student.id !== id)) {
+        if (details.code && section.students.some((student) => student.code === details.code && student.id !== id)) {
           return 'هذا الكود مسجّل بالفعل في السكشن.'
         }
         return updateRoster(editor.id
@@ -148,6 +157,29 @@ export default function App({ store = courseStore, account }: {
     const skipped = rows.length - added.length
     const summary = `تم استيراد ${number.format(added.length)} من الطلاب.`
     setNotice({ text: skipped ? `${summary} تم تخطّي ${number.format(skipped)} من الصفوف لوجود بيانات ناقصة أو أكواد مكررة.` : summary })
+  }
+
+  async function pasteStudents(rows: StudentDetails[]) {
+    let added = 0
+    const route = navigation.current
+    const failure = await updateSection((item) => {
+      const codes = new Set(item.students.flatMap((student) => student.code ? [student.code] : []))
+      const next = rows.flatMap(({ name, code }) => {
+        if (!name || name.length > 200 || code.length > 100 || (code && codes.has(code))) return []
+        if (code) codes.add(code)
+        return [{ id: crypto.randomUUID(), name, code }]
+      })
+      added = next.length
+      return next.length ? { ...item, students: [...item.students, ...next] } : item
+    })
+    if (failure) return failure
+    if (!added) return 'لم يُضف أي طالب. تحقّق من الأسماء والأكواد المكررة.'
+    if (route === navigation.current) {
+      const skipped = rows.length - added
+      setPasting(false)
+      setNotice({ text: `تمت إضافة ${number.format(added)} من الطلاب.` +
+        (skipped ? ` تم تخطّي ${number.format(skipped)} من السطور غير الصالحة أو ذات الأكواد المكررة.` : '') })
+    }
   }
 
   async function importFile(file: File) {
@@ -184,7 +216,7 @@ export default function App({ store = courseStore, account }: {
         <span><strong>مساعد المعيد</strong><small>مساحة المعيد</small></span>
       </a>
       <nav aria-label="القائمة الرئيسية">
-        <a className="nav-link" href="#" aria-current={!course ? 'page' : undefined}><LayoutGrid size={19} /> المقررات</a>
+        <a className="nav-link" href="#" aria-current={!course && !showingSettings ? 'page' : undefined}><LayoutGrid size={19} /> المقررات</a>
       </nav>
       {!sync && <div className="local"><HardDrive size={17} /> تخزين على هذا الجهاز</div>}
     </aside>
@@ -194,13 +226,17 @@ export default function App({ store = courseStore, account }: {
           <a href="#"><BookOpen size={18} /> المقررات</a>
           {course && <><ChevronLeft size={15} /><a href={`#${course.id}`}>{course.name}</a></>}
           {section && <><ChevronLeft size={15} /><span aria-current="page">{section.name}</span></>}
+          <a className="settings-link" href="#/settings" aria-current={showingSettings ? 'page' : undefined}><SettingsIcon size={18} /> الإعدادات</a>
         </nav>
       </header>
       <main className="content">
         {account}
         {loadError && sync && <p className="notice form-error sync-status" role="alert">تعذّرت مزامنة البيانات. تحقّق من الاتصال وإعدادات Firestore ثم أعد فتح التطبيق.</p>}
         {notice && <div className={`notice ${notice.error ? 'form-error' : ''}`} role={notice.error ? 'alert' : 'status'}>{notice.text}</div>}
-        {loadError && !courses ? !sync && <p className="notice form-error" role="alert">تعذّر قراءة البيانات المخزنة على هذا الجهاز.</p>
+        {showingSettings ? <Settings ready={courses !== null} canRestore={courses !== null || (!sync && loadError)}
+            read={async () => { await pending.current; return currentCourses.current }}
+            restore={(snapshot) => persist(() => snapshot, !sync && loadError)} />
+          : loadError && !courses ? !sync && <p className="notice form-error" role="alert">تعذّر قراءة البيانات المخزنة على هذا الجهاز.</p>
           : !courses ? <p role="status">جارٍ تحميل المقررات…{sync && ' يتطلب فتح مساحة العمل لأول مرة اتصالًا بالإنترنت.'}</p>
           : course && section ? <>
             <nav className="section-tabs" aria-label="أقسام السكشن">
@@ -209,14 +245,16 @@ export default function App({ store = courseStore, account }: {
               <a href={`#${assessmentPath}`} aria-current={showingAssessments ? 'page' : undefined}><ListChecks size={18} /> التاسكات والتقييمات</a>
               <a href={`#${reportPath}`} aria-current={showingReports ? 'page' : undefined}><FileBarChart2 size={18} /> التقارير والتصدير</a>
             </nav>
-            {showingReports ? <Reports key={sectionPath} courseName={course.name} section={section} />
+            {showingReports ? <Reports key={sectionPath} courseName={course.name} section={section} onProfile={setProfile} />
               : showingAssessments
-              ? <Assessments key={`${assessmentPath}/${sessionId ?? ''}`} section={section} assessmentId={sessionId} path={assessmentPath} save={updateSection} />
+              ? <Assessments key={`${assessmentPath}/${sessionId ?? ''}`} section={section} assessmentId={sessionId} path={assessmentPath} save={updateSection} onProfile={setProfile} />
               : showingAttendance
-              ? <Attendance key={`${sectionPath}/${sessionId ?? ''}`} section={section} session={session} path={attendancePath} save={updateSessions} />
+              ? <Attendance key={`${sectionPath}/${sessionId ?? ''}`} section={section} session={session} path={attendancePath} save={updateSessions} onProfile={setProfile} />
               : <RosterView section={section} importing={importing}
                   onAdd={() => setEditor({ type: 'student', title: 'إضافة طالب' })}
                   onImport={() => fileInput.current?.click()}
+                  onPaste={() => setPasting(true)}
+                  onProfile={setProfile}
                   onEdit={(student) => setEditor({ type: 'student', title: 'تعديل طالب', ...student })}
                   onDelete={(student) => setEditor({ type: 'delete-student', id: student.id, name: student.name })} />}
           </> : course ? <CourseView course={course}
@@ -233,6 +271,14 @@ export default function App({ store = courseStore, account }: {
       event.currentTarget.value = ''
       if (file && !importing) void importFile(file)
     }} />
+    {pasting && <BulkPaste close={() => setPasting(false)} save={pasteStudents} />}
+    {profile && section && <StudentProfile student={section.students.find((student) => student.id === profile.id) ?? profile}
+      section={section} onClose={() => setProfile(null)} onSave={(note) => updateSection((item) => {
+        const studentNotes = { ...item.studentNotes }
+        if (note) studentNotes[profile.id] = note
+        else delete studentNotes[profile.id]
+        return { ...item, studentNotes }
+      })} />}
     {editor && <Editor editor={editor} onClose={() => setEditor(null)} onSave={saveEditor} onImport={importStudents} />}
   </div>
 }

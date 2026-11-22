@@ -2,6 +2,7 @@ import { Component, lazy, StrictMode, Suspense, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import App from './App'
+import { AppPreferences } from './components/AppPreferences'
 import { readFirebaseConfig } from './services/firebaseConfig'
 import './styles.css'
 
@@ -27,10 +28,10 @@ registerSW({ immediate: true })
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {config ? <FirebaseBoundary>
+    <AppPreferences>{config ? <FirebaseBoundary>
       <Suspense fallback={<p className="auth-screen" role="status">جارٍ فتح مساحة العمل…</p>}>
         <FirebaseApp config={config} />
       </Suspense>
-    </FirebaseBoundary> : <App />}
+    </FirebaseBoundary> : <App />}</AppPreferences>
   </StrictMode>,
 )
