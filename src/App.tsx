@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, ChevronLeft, GraduationCap, HardDrive, LayoutGrid } from 'lucide-react'
+import { BookOpen, ChevronLeft, ClipboardCheck, GraduationCap, HardDrive, LayoutGrid, Users } from 'lucide-react'
+import { Attendance } from './components/Attendance'
 import { Editor, type EditorState } from './components/Editor'
 import { CourseView, Dashboard, number, RosterView } from './components/Views'
 import { courseStore } from './services/storage'
 import { mapStudents, readSheet } from './services/spreadsheet'
-import type { Course, Section, StudentDetails } from './types'
+import type { AttendanceSession, Course, Section, StudentDetails } from './types'
 
 const saveError = 'تعذّر حفظ التغييرات على هذا الجهاز.'
 const getRoute = () => location.hash.slice(1).split('/')
@@ -12,7 +13,7 @@ const getRoute = () => location.hash.slice(1).split('/')
 export default function App() {
   const [courses, setCourses] = useState<Course[] | null>(null)
   const [loadError, setLoadError] = useState(false)
-  const [[courseId, sectionId], setRoute] = useState(getRoute)
+  const [[courseId, sectionId, view, sessionId], setRoute] = useState(getRoute)
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null)
   const [importing, setImporting] = useState(false)
@@ -21,6 +22,11 @@ export default function App() {
   const navigation = useRef(0)
   const course = courses?.find((item) => item.id === courseId)
   const section = course?.sections.find((item) => item.id === sectionId)
+
+  const sectionPath = `${courseId}/${sectionId}`
+  const attendancePath = `${sectionPath}/attendance`
+  const showingAttendance = view === 'attendance'
+  const session = section?.sessions?.find((item) => item.id === sessionId)
 
   useEffect(() => {
     let active = true
@@ -66,6 +72,12 @@ export default function App() {
   function updateRoster(students: Section['students']) {
     return updateSections((sections) => sections.map((item) =>
       item.id === section?.id ? { ...item, students } : item,
+    ))
+  }
+
+  function updateSessions(change: (sessions: AttendanceSession[]) => AttendanceSession[]) {
+    return updateSections((sections) => sections.map((item) =>
+      item.id === section?.id ? { ...item, sessions: change(item.sessions ?? []) } : item,
     ))
   }
 
@@ -163,12 +175,19 @@ export default function App() {
         {notice && <div className={`notice ${notice.error ? 'form-error' : ''}`} role={notice.error ? 'alert' : 'status'}>{notice.text}</div>}
         {loadError ? <p className="notice form-error" role="alert">تعذّر قراءة البيانات المخزنة على هذا الجهاز.</p>
           : !courses ? <p role="status">جارٍ تحميل المقررات…</p>
-          : course && section ? <RosterView section={section} importing={importing}
-              onAdd={() => setEditor({ type: 'student', title: 'إضافة طالب' })}
-              onImport={() => fileInput.current?.click()}
-              onEdit={(student) => setEditor({ type: 'student', title: 'تعديل طالب', ...student })}
-              onDelete={(student) => setEditor({ type: 'delete-student', id: student.id, name: student.name })} />
-          : course ? <CourseView course={course}
+          : course && section ? <>
+            <nav className="section-tabs" aria-label="أقسام السكشن">
+              <a href={`#${sectionPath}`} aria-current={!showingAttendance ? 'page' : undefined}><Users size={18} /> الطلاب</a>
+              <a href={`#${attendancePath}`} aria-current={showingAttendance ? 'page' : undefined}><ClipboardCheck size={18} /> الحضور</a>
+            </nav>
+            {showingAttendance
+              ? <Attendance key={`${sectionPath}/${sessionId ?? ''}`} section={section} session={session} path={attendancePath} save={updateSessions} />
+              : <RosterView section={section} importing={importing}
+                  onAdd={() => setEditor({ type: 'student', title: 'إضافة طالب' })}
+                  onImport={() => fileInput.current?.click()}
+                  onEdit={(student) => setEditor({ type: 'student', title: 'تعديل طالب', ...student })}
+                  onDelete={(student) => setEditor({ type: 'delete-student', id: student.id, name: student.name })} />}
+          </> : course ? <CourseView course={course}
               onAdd={() => setEditor({ type: 'section', title: 'إضافة سكشن' })}
               onOpen={(item) => { location.hash = `${course.id}/${item.id}` }}
               onEdit={(item) => setEditor({ type: 'section', title: 'تعديل سكشن', id: item.id, name: item.name })}

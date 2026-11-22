@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, Code2, Database, FileUp, FolderOpen, Layers3, Network, Pencil, Plus, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, BookOpen, CircleAlert, Code2, Database, FileUp, FolderOpen, Layers3, Network, Pencil, Plus, Trash2, Users } from 'lucide-react'
 import type { Course, Section, Student } from '../types'
 
 const courseIcons = [Code2, Database, Network, BookOpen]
@@ -93,6 +93,14 @@ export function RosterView({ section, onAdd, onImport, onEdit, onDelete, importi
   onDelete: (student: Student) => void
   importing: boolean
 }) {
+  const sessions = section.sessions ?? []
+  const absences = new Map<string, number>()
+  for (const session of sessions) {
+    for (const { student, status } of session.entries) {
+      if (status === 'absent') absences.set(student.id, (absences.get(student.id) ?? 0) + 1)
+    }
+  }
+
   return <section>
     <div className="section-heading detail">
       <div><h1>{section.name}</h1><p>قائمة الطلاب · {number.format(section.students.length)}</p></div>
@@ -105,15 +113,23 @@ export function RosterView({ section, onAdd, onImport, onEdit, onDelete, importi
     </div>
     {section.students.length === 0 && <Empty text="أضف طالبًا أو استورد قائمة الطلاب من ملف إكسيل أو CSV." />}
     <ul className="m-0 grid list-none gap-2 p-0">
-      {section.students.map((student) => (
-        <li className="record" key={student.id}>
+      {section.students.map((student) => {
+        const absenceCount = absences.get(student.id) ?? 0
+        return <li className="record" key={student.id}>
           <div className="record-link">
             <span className="tile-icon tone-1"><Users size={20} /></span>
-            <span><strong>{student.name}</strong><small>الكود · <bdi>{student.code}</bdi></small></span>
+            <div>
+              <strong>{student.name}</strong>
+              <small>الكود · <bdi>{student.code}</bdi></small>
+              <small>الغياب · {number.format(absenceCount)} من {number.format(sessions.length)}</small>
+              {absenceCount * 4 > sessions.length && (
+                <span className="absence-warning"><CircleAlert size={14} /> تجاوز الغياب ٢٥٪</span>
+              )}
+            </div>
           </div>
           <RecordActions name={student.name} disabled={importing} onEdit={() => onEdit(student)} onDelete={() => onDelete(student)} />
         </li>
-      ))}
+      })}
     </ul>
   </section>
 }

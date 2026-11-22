@@ -53,7 +53,7 @@ export function Editor({ editor, onClose, onSave, onImport }: {
         <ColumnSelect label="عمود الاسم" headers={editor.sheet.headers} value={nameColumn} onChange={setNameColumn} />
         <ColumnSelect label="عمود الكود" headers={editor.sheet.headers} value={codeColumn} onChange={setCodeColumn} />
       </> : deleting ? (
-        <p>هل تريد حذف «{editor.name}»؟ {editor.type === 'delete-section' && 'سيتم حذف قائمة طلاب السكشن أيضًا.'}</p>
+        <p>هل تريد حذف «{editor.name}»؟ {editor.type === 'delete-section' && 'سيتم حذف قائمة الطلاب وسجل الحضور لهذا السكشن.'}</p>
       ) : <>
         <label>
           {editor.type === 'course' ? 'اسم المقرر' : editor.type === 'section' ? 'اسم السكشن' : 'اسم الطالب'}
