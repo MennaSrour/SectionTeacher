@@ -5,6 +5,13 @@ export interface CourseStore {
   save(courses: Course[]): Promise<void>
 }
 
+export type CourseObserver = (courses: Course[]) => void
+export type StorageErrorObserver = (error: unknown) => void
+
+export interface SyncCourseStore extends CourseStore {
+  subscribe(onData: CourseObserver, onError: StorageErrorObserver): () => void
+}
+
 const key = 'section-teacher.courses.v1'
 
 const initialCourses: Course[] = [
@@ -16,10 +23,14 @@ const initialCourses: Course[] = [
   { id: 'networks', name: 'شبكات الحاسب', sections: [] },
 ]
 
+export function sampleCourses(): Course[] {
+  return structuredClone(initialCourses)
+}
+
 export const courseStore: CourseStore = {
   async load() {
     const saved = localStorage.getItem(key)
-    if (saved === null) return structuredClone(initialCourses)
+    if (saved === null) return sampleCourses()
     const courses: unknown = JSON.parse(saved)
     if (!Array.isArray(courses)) throw new Error('Invalid course storage')
     return courses

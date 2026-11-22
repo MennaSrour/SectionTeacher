@@ -7,8 +7,8 @@ export interface Sheet {
   codeColumn: number
 }
 
-const nameHeaders = ['اسم', 'الاسم', 'اسم الطالب', 'الاسم الكامل', 'name', 'student name', 'full name']
-const codeHeaders = ['كود', 'الكود', 'كود الطالب', 'رقم الطالب', 'الرقم الجامعي', 'رقم جامعي', 'id', 'student id', 'student code', 'code']
+const nameHeaders = ['اسم', 'الاسم', 'اسم الطالب', 'اسم الطالب كاملا', 'اسم الطالب بالكامل', 'اسمك', 'الاسم الكامل', 'name', 'student name', 'full name']
+const codeHeaders = ['كود', 'الكود', 'كود الطالب', 'رقم الطالب', 'الرقم الجامعي', 'رقم جامعي', 'id', 'student id', 'student number', 'كودك', 'الكود الجامعي', 'الرقم الاكاديمي', 'student code', 'code']
 
 function normalize(header: string) {
   return header.toLowerCase().replace(/[أإآ]/g, 'ا').replace(/[\u064b-\u065f\u0640]/g, '').replace(/[_-]/g, ' ').replace(/\s+/g, ' ').trim()
@@ -19,7 +19,7 @@ function findColumn(headers: string[], aliases: string[]) {
   return matches.length === 1 ? matches[0] : -1
 }
 
-export async function readSheet(file: File): Promise<Sheet> {
+export async function readSheet(file: File, minimumColumns = 2): Promise<Sheet> {
   if (!/\.(xlsx|csv)$/i.test(file.name)) throw new Error('اختر ملفًا بصيغة XLSX أو CSV.')
   if (file.size > 5 * 1024 * 1024) throw new Error('حجم الملف المسموح به ٥ ميغابايت.')
   const { read, utils } = await import('xlsx')
@@ -34,7 +34,7 @@ export async function readSheet(file: File): Promise<Sheet> {
     defval: '',
     blankrows: false,
   })
-  if (!headers || headers.length < 2 || rows.length === 0) {
+  if (!headers || headers.length < minimumColumns || rows.length === 0) {
     throw new Error('أضف صف عناوين وبيانات طالب واحد على الأقل.')
   }
   if (rows.length > 10000) throw new Error('يمكن استيراد ١٠٬٠٠٠ صف في كل مرة.')
