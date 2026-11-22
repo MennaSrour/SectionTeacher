@@ -18,11 +18,38 @@ export interface AttendanceSession {
   entries: AttendanceEntry[]
 }
 
+export interface AssessmentResult {
+  submitted?: boolean
+  score?: number
+}
+
+export interface UnmatchedSubmission {
+  id: string
+  row: number
+  name: string
+  code: string
+}
+
+export interface Assessment {
+  id: string
+  name: string
+  maxScore?: number
+  results: Record<string, AssessmentResult>
+  unmatched?: UnmatchedSubmission[]
+}
+
+export interface Bonus {
+  points: number
+  note: string
+}
+
 export interface Section {
   id: string
   name: string
   students: Student[]
   sessions?: AttendanceSession[]
+  assessments?: Assessment[]
+  bonuses?: Record<string, Bonus>
 }
 
 export interface Course {

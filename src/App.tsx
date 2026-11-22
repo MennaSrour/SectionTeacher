@@ -1,16 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
-import { BookOpen, ChevronLeft, ClipboardCheck, GraduationCap, HardDrive, LayoutGrid, Users } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { BookOpen, ChevronLeft, ClipboardCheck, FileBarChart2, GraduationCap, HardDrive, LayoutGrid, ListChecks, Users } from 'lucide-react'
+import { Assessments } from './components/Assessments'
 import { Attendance } from './components/Attendance'
 import { Editor, type EditorState } from './components/Editor'
+import { Reports } from './components/Reports'
 import { CourseView, Dashboard, number, RosterView } from './components/Views'
-import { courseStore } from './services/storage'
+import { courseStore, type CourseStore, type SyncCourseStore } from './services/storage'
 import { mapStudents, readSheet } from './services/spreadsheet'
 import type { AttendanceSession, Course, Section, StudentDetails } from './types'
 
-const saveError = 'تعذّر حفظ التغييرات على هذا الجهاز.'
+const saveError = 'تعذّر حفظ التغييرات.'
 const getRoute = () => location.hash.slice(1).split('/')
 
-export default function App() {
+export default function App({ store = courseStore, account }: {
+  store?: CourseStore | SyncCourseStore
+  account?: ReactNode
+}) {
+  const sync = 'subscribe' in store ? store : undefined
   const [courses, setCourses] = useState<Course[] | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [[courseId, sectionId, view, sessionId], setRoute] = useState(getRoute)
@@ -18,7 +24,8 @@ export default function App() {
   const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null)
   const [importing, setImporting] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
-  const pending = useRef(false)
+  const currentCourses = useRef<Course[] | null>(null)
+  const pending = useRef(Promise.resolve())
   const navigation = useRef(0)
   const course = courses?.find((item) => item.id === courseId)
   const section = course?.sections.find((item) => item.id === sectionId)
@@ -27,15 +34,29 @@ export default function App() {
   const attendancePath = `${sectionPath}/attendance`
   const showingAttendance = view === 'attendance'
   const session = section?.sessions?.find((item) => item.id === sessionId)
+  const assessmentPath = `${sectionPath}/assessments`
+  const reportPath = `${sectionPath}/reports`
+  const showingReports = view === 'reports'
+  const showingAssessments = view === 'assessments'
 
   useEffect(() => {
     let active = true
-    courseStore.load().then(
-      (data) => { if (active) setCourses(data) },
-      () => { if (active) setLoadError(true) },
-    )
-    return () => { active = false }
-  }, [])
+
+    function update(data: Course[]) {
+      if (!active) return
+      currentCourses.current = data
+      setCourses(data)
+      setLoadError(false)
+    }
+
+    function fail() {
+      if (active) setLoadError(true)
+    }
+
+    const unsubscribe = sync?.subscribe(update, fail)
+    if (!sync) void store.load().then(update, fail)
+    return () => { active = false; unsubscribe?.() }
+  }, [store, sync])
 
   useEffect(() => {
     const update = () => {
@@ -49,36 +70,40 @@ export default function App() {
     return () => window.removeEventListener('hashchange', update)
   }, [])
 
-  async function persist(next: Course[]) {
-    if (pending.current) return 'انتظر حتى يكتمل الحفظ.'
-    pending.current = true
-    try {
-      await courseStore.save(next)
-      setCourses(next)
-    } catch {
-      return saveError
-    } finally {
-      pending.current = false
-    }
+  function persist(change: (courses: Course[]) => Course[]) {
+    const operation = pending.current.then(async () => {
+      try {
+        if (!currentCourses.current) return saveError
+        const next = change(currentCourses.current)
+        await store.save(next)
+        if (!sync) {
+          currentCourses.current = next
+          setCourses(next)
+        }
+      } catch {
+        return saveError
+      }
+    })
+    pending.current = operation.then(() => {})
+    return operation
   }
 
   function updateSections(change: (sections: Section[]) => Section[]) {
-    if (!courses || !course) return Promise.resolve(saveError)
-    return persist(courses.map((item) =>
-      item.id === course.id ? { ...item, sections: change(item.sections) } : item,
+    return persist((all) => all.map((item) =>
+      item.id === courseId ? { ...item, sections: change(item.sections) } : item,
     ))
+  }
+
+  function updateSection(change: (section: Section) => Section) {
+    return updateSections((sections) => sections.map((item) => item.id === sectionId ? change(item) : item))
   }
 
   function updateRoster(students: Section['students']) {
-    return updateSections((sections) => sections.map((item) =>
-      item.id === section?.id ? { ...item, students } : item,
-    ))
+    return updateSection((item) => ({ ...item, students }))
   }
 
   function updateSessions(change: (sessions: AttendanceSession[]) => AttendanceSession[]) {
-    return updateSections((sections) => sections.map((item) =>
-      item.id === section?.id ? { ...item, sessions: change(item.sessions ?? []) } : item,
-    ))
+    return updateSection((item) => ({ ...item, sessions: change(item.sessions ?? []) }))
   }
 
   async function saveEditor(details: StudentDetails) {
@@ -86,7 +111,7 @@ export default function App() {
     const id = editor.type !== 'import' && editor.id ? editor.id : crypto.randomUUID()
     switch (editor.type) {
       case 'course':
-        return persist([...courses, { id, name: details.name, sections: [] }])
+        return persist((all) => [...all, { id, name: details.name, sections: [] }])
       case 'section':
         return updateSections((sections) => editor.id
           ? sections.map((item) => item.id === id ? { ...item, name: details.name } : item)
@@ -156,12 +181,12 @@ export default function App() {
     <aside className="sidebar">
       <a href="#" className="brand">
         <span className="brand-icon"><GraduationCap size={26} /></span>
-        <span><strong>سكشن</strong><small>مساحة المعيد</small></span>
+        <span><strong>مساعد المعيد</strong><small>مساحة المعيد</small></span>
       </a>
       <nav aria-label="القائمة الرئيسية">
         <a className="nav-link" href="#" aria-current={!course ? 'page' : undefined}><LayoutGrid size={19} /> المقررات</a>
       </nav>
-      <div className="local"><HardDrive size={17} /> تخزين على هذا الجهاز</div>
+      {!sync && <div className="local"><HardDrive size={17} /> تخزين على هذا الجهاز</div>}
     </aside>
     <div className="workspace">
       <header className="topbar">
@@ -172,15 +197,22 @@ export default function App() {
         </nav>
       </header>
       <main className="content">
+        {account}
+        {loadError && sync && <p className="notice form-error sync-status" role="alert">تعذّرت مزامنة البيانات. تحقّق من الاتصال وإعدادات Firestore ثم أعد فتح التطبيق.</p>}
         {notice && <div className={`notice ${notice.error ? 'form-error' : ''}`} role={notice.error ? 'alert' : 'status'}>{notice.text}</div>}
-        {loadError ? <p className="notice form-error" role="alert">تعذّر قراءة البيانات المخزنة على هذا الجهاز.</p>
-          : !courses ? <p role="status">جارٍ تحميل المقررات…</p>
+        {loadError && !courses ? !sync && <p className="notice form-error" role="alert">تعذّر قراءة البيانات المخزنة على هذا الجهاز.</p>
+          : !courses ? <p role="status">جارٍ تحميل المقررات…{sync && ' يتطلب فتح مساحة العمل لأول مرة اتصالًا بالإنترنت.'}</p>
           : course && section ? <>
             <nav className="section-tabs" aria-label="أقسام السكشن">
-              <a href={`#${sectionPath}`} aria-current={!showingAttendance ? 'page' : undefined}><Users size={18} /> الطلاب</a>
+              <a href={`#${sectionPath}`} aria-current={!showingAttendance && !showingAssessments && !showingReports ? 'page' : undefined}><Users size={18} /> الطلاب</a>
               <a href={`#${attendancePath}`} aria-current={showingAttendance ? 'page' : undefined}><ClipboardCheck size={18} /> الحضور</a>
+              <a href={`#${assessmentPath}`} aria-current={showingAssessments ? 'page' : undefined}><ListChecks size={18} /> التاسكات والتقييمات</a>
+              <a href={`#${reportPath}`} aria-current={showingReports ? 'page' : undefined}><FileBarChart2 size={18} /> التقارير والتصدير</a>
             </nav>
-            {showingAttendance
+            {showingReports ? <Reports key={sectionPath} courseName={course.name} section={section} />
+              : showingAssessments
+              ? <Assessments key={`${assessmentPath}/${sessionId ?? ''}`} section={section} assessmentId={sessionId} path={assessmentPath} save={updateSection} />
+              : showingAttendance
               ? <Attendance key={`${sectionPath}/${sessionId ?? ''}`} section={section} session={session} path={attendancePath} save={updateSessions} />
               : <RosterView section={section} importing={importing}
                   onAdd={() => setEditor({ type: 'student', title: 'إضافة طالب' })}
