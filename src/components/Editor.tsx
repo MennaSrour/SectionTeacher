@@ -18,6 +18,7 @@ export function Editor({ editor, onClose, onSave, onImport }: {
   const [saving, setSaving] = useState(false)
   const [nameColumn, setNameColumn] = useState(editor.type === 'import' ? editor.sheet.nameColumn : -1)
   const [codeColumn, setCodeColumn] = useState(editor.type === 'import' ? editor.sheet.codeColumn : -1)
+  const codeRequired = editor.type === 'student' && (!editor.id || !!editor.code)
   const deleting = editor.type === 'delete-section' || editor.type === 'delete-student'
   const title = editor.type === 'import' ? 'تحديد أعمدة الطلاب' : 'title' in editor ? editor.title : 'تأكيد الحذف'
   const close = () => { if (!saving) onClose() }
@@ -33,7 +34,7 @@ export function Editor({ editor, onClose, onSave, onImport }: {
         setError('اختر عمودًا مختلفًا لكل حقل.')
         return
       }
-    } else if (!deleting && (!name || (editor.type === 'student' && !code))) {
+    } else if (!deleting && (!name || (codeRequired && !code))) {
       setError('املأ الحقول المطلوبة.')
       return
     }
@@ -61,7 +62,7 @@ export function Editor({ editor, onClose, onSave, onImport }: {
         </label>
         {editor.type === 'student' && <label>
           الكود الجامعي
-          <input name="code" defaultValue={editor.code} required dir="auto" maxLength={100} />
+          <input name="code" defaultValue={editor.code} required={codeRequired} dir="auto" maxLength={100} />
         </label>}
       </>}
       {error && <p className="form-error" role="alert">{error}</p>}

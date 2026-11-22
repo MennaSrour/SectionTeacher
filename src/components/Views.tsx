@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, CircleAlert, Code2, Database, FileUp, FolderOpen, Layers3, Network, Pencil, Plus, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, BookOpen, CircleAlert, ClipboardPaste, Code2, Database, FileUp, FolderOpen, Layers3, Network, Pencil, Plus, Trash2, Users } from 'lucide-react'
 import type { Course, Section, Student } from '../types'
 
 const courseIcons = [Code2, Database, Network, BookOpen]
@@ -85,10 +85,12 @@ export function CourseView({ course, onAdd, onOpen, onEdit, onDelete }: {
   </section>
 }
 
-export function RosterView({ section, onAdd, onImport, onEdit, onDelete, importing }: {
+export function RosterView({ section, onAdd, onImport, onPaste, onProfile, onEdit, onDelete, importing }: {
   section: Section
   onAdd: () => void
   onImport: () => void
+  onPaste: () => void
+  onProfile: (student: Student) => void
   onEdit: (student: Student) => void
   onDelete: (student: Student) => void
   importing: boolean
@@ -108,10 +110,11 @@ export function RosterView({ section, onAdd, onImport, onEdit, onDelete, importi
         <button className="button secondary" onClick={onImport} disabled={importing}>
           <FileUp size={18} /> {importing ? 'جارٍ قراءة الملف…' : 'استيراد من إكسيل'}
         </button>
+        <button className="button secondary" onClick={onPaste} disabled={importing}><ClipboardPaste size={18} /> لصق سريع</button>
         <button className="button primary" onClick={onAdd} disabled={importing}><Plus size={19} /> إضافة طالب</button>
       </div>
     </div>
-    {section.students.length === 0 && <Empty text="أضف طالبًا أو استورد قائمة الطلاب من ملف إكسيل أو CSV." />}
+    {section.students.length === 0 && <Empty text="أضف طالبًا أو الصق قائمة الطلاب أو استوردها من ملف." />}
     <ul className="m-0 grid list-none gap-2 p-0">
       {section.students.map((student) => {
         const absenceCount = absences.get(student.id) ?? 0
@@ -119,8 +122,8 @@ export function RosterView({ section, onAdd, onImport, onEdit, onDelete, importi
           <div className="record-link">
             <span className="tile-icon tone-1"><Users size={20} /></span>
             <div>
-              <strong>{student.name}</strong>
-              <small>الكود · <bdi>{student.code}</bdi></small>
+              <button className="student-name" disabled={importing} onClick={() => onProfile(student)}>{student.name}</button>
+              <small>الكود · <bdi>{student.code || '—'}</bdi></small>
               <small>الغياب · {number.format(absenceCount)} من {number.format(sessions.length)}</small>
               {absenceCount * 4 > sessions.length && (
                 <span className="absence-warning"><CircleAlert size={14} /> تجاوز الغياب ٢٥٪</span>

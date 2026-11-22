@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { CalendarDays, Check, ChevronLeft, Clock3, Pencil, Plus, Search, UserCheck, UserX, X } from 'lucide-react'
-import type { AttendanceEntry, AttendanceSession, AttendanceStatus, Section } from '../types'
+import type { AttendanceEntry, AttendanceSession, AttendanceStatus, Section, Student } from '../types'
 import { Modal } from './Modal'
 import { number } from './Views'
 
@@ -28,8 +28,9 @@ function normalize(value: string) {
     .replace(/[٠-٩۰-۹]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹'.indexOf(digit) % 10))
 }
 
-export function Attendance({ section, session, path, save }: {
+export function Attendance({ section, session, path, save, onProfile }: {
   section: Section
+  onProfile: (student: Student) => void
   session?: AttendanceSession
   path: string
   save: SaveSession
@@ -112,7 +113,7 @@ export function Attendance({ section, session, path, save }: {
       <ul className="m-0 grid list-none gap-2 p-0">
         {visible.map(({ student, status }) => (
           <li key={student.id} className="attendance-row">
-            <div className="attendance-person"><strong>{student.name}</strong><small>الكود · <bdi>{student.code}</bdi></small></div>
+            <div className="attendance-person"><button className="student-name" onClick={() => onProfile(student)}>{student.name}</button><small>الكود · <bdi>{student.code || '—'}</bdi></small></div>
             <div className="attendance-statuses" role="group" aria-label={`حضور ${student.name} · ${student.code}`}>
               {statuses.map(({ status: option, label, icon: Icon }) => (
                 <button key={option} className={`attendance-status ${option}`} aria-pressed={status === option}
