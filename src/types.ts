@@ -4,10 +4,25 @@ export interface Student {
   code: string
 }
 
+export type AttendanceStatus = 'present' | 'absent' | 'excused'
+
+export interface AttendanceEntry {
+  student: Student
+  status?: AttendanceStatus
+}
+
+export interface AttendanceSession {
+  id: string
+  date: string
+  label: string
+  entries: AttendanceEntry[]
+}
+
 export interface Section {
   id: string
   name: string
   students: Student[]
+  sessions?: AttendanceSession[]
 }
 
 export interface Course {
